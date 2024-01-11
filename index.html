@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>G9 Game</title>
+
+    <script>
+        //get random location for ID
+        const upper = 0.9999999999999999;
+        //Math.random() gives a number 0<=#<1
+        //decide how many random numbers you want to get from this (8 in this case)
+        //divide 1 into sections of 8. Whatever section the random number generated lands in is the number you get
+        //get sections by setting bounds as greater than previous section, but less than next section
+        const thenum = Math.random();
+        var randLocation = 0; //ID shouldn't go here. If it does, know something's wrong.
+        
+        //to get 1, random number must be <= 1/8
+        if(thenum <= 1/8){
+            randLocation = 1;
+        }
+        //to get 2, random number must be > 1/8, but <= to 2/8
+        //in other words, it must be more than the selection criteria for 1
+        //but also less than the selection criteria for 3 (which would be > 2/8)
+        else if((thenum > 1/8)&&(thenum <= 2/8)){
+            randLocation = 2;
+        }
+        //and so on...
+        else if((thenum > 2/8)&&(thenum <= 3/8)){
+            randLocation = 3;
+        }
+        else if((thenum > 3/8)&&(thenum <= 4/8)){
+            randLocation = 4;
+        }
+        else if((thenum > 4/8)&&(thenum <= 5/8)){
+            randLocation = 5;
+        }
+        else if((thenum > 5/8)&&(thenum <= 6/8)){
+            randLocation = 6;
+        }
+        else if((thenum > 6/8)&&(thenum <= 7/8)){
+            randLocation = 7;
+        }
+        else if((thenum > 7/8)&&(thenum <= upper)){
+            randLocation = 8;
+        }
+        //no else. If number doesn't meet any of the above selections
+        //then it'll stay 0 and be visibly broken
+        //while still leaving the game technically playable (just very easy)
+
+        //player starts out in SUB, location is set to 0
+        var currLocation = 0;
+        var currLocationName = "SUB";
+
+        //player starts with 120 minutes
+        var timeRemaining = 120;
+
+        //using arrays to store distance from one location to every other location
+        //Format: LOCATIONNAME_ARR = distance-to-location[0, 1, 2, 3, 4, 5] from-LOCATIONNAME
+        //or; distance-to-location[SUB, PABL, PPP, HPG, GP, HUGP] from-LOCATIONNAME
+        //Note: A locations distance to itself is zero
+        //No distance logged for CB, BRB, and TRAIL, as they do not exist on the map and don't have map pointers to store distance in.
+        const SUB_ARR = [0,15,35,15,15,10];
+        const PABL_ARR = [15,0,45,30,25,5];
+        const PPP_ARR = [35,45,0,35,25,40];
+        const HPG_ARR = [15,30,35,0,20,25];
+        const GP_ARR = [15,25,25,20,0,20];
+        const HUGP_ARR = [10,5,40,25,20,0];
+        const TRAIL_ARR = [15,20,30,25,10,15];
+        //another array with names of all locations with map pointers
+        const LOCATIONS = ["SUB","PABL","PPP","HPG","GP","HUGP"]
+        //another array to track where player has been (0 = unknown, 1 = known)
+        var visited = [0,0,0,0,0,0];
+        //need this for removing right location name before opening map
+        const ALLLOC = ["zero", "one", "two", "three", "four", "five","six", "seven", "eight"];
+
+        //FUNCTIONS----------------------------------------------------------------------------------------------------------
+
+        //set map pointer distances
+        function setMap(LOC_ARR){
+            //give each location in LOCATIONS[] its distance in provided distance array LOC_ARR[]
+            for(var i = 0; i <= 5; i++){
+                document.getElementById(LOCATIONS[i]).class = LOC_ARR[i];
+                if(LOC_ARR[i] == 0){
+                    document.getElementById(LOCATIONS[i]+"time").innerHTML = "";   
+                }
+                else{
+                    document.getElementById(LOCATIONS[i]+"time").innerHTML = "-"+LOC_ARR[i]+" minutes";  
+                }
+                //console.log(document.getElementById(LOCATIONS[i]+"time").innerHTML);
+                //seems to be working, uncomment this if need to check what values it's creating
+                //just make sure you know which array it's taking in
+                
+            }
+        }
+        //get shortest travel distance on map
+        function minDis(){
+            //set as distance larger than any possible
+            var min = 100;
+            var count = 0;
+            //compare min to each count currently in map pointers
+            //do not count distance = 0
+            while(count <= 5){
+                if(min > document.getElementById(LOCATIONS[count]).class && document.getElementById(LOCATIONS[count]).class != 0){
+                    min = document.getElementById(LOCATIONS[count]).class;
+                }
+                count++;
+            }
+            return min;
+        }
+
+        //LOCATION MASTERLIST
+        //SUB = 0
+        //PABL = 1
+        //PPP = 2
+        //CB = 3
+        //BRB = 4
+        //HPG = 5
+        //GP = 6
+        //HUGP = 7 
+        //TRAIL = 8      
+
+
+        //Set up into when player hits play
+        function goIntro(){
+            //hide title screen and play button
+            document.getElementById("home").style.visibility = "hidden";
+            document.getElementById("start").style.visibility = "hidden";
+            //show SUB background and into text1
+            document.getElementById("0").style.visibility = "visible";
+            document.getElementById("int1").style.visibility = "visible";
+        }
+
+
+        //allow scrolling through intro "pages"
+        //parameter passed is into page you want. 2 = show intro 2, 3 = show intro 3
+        function introScroll(intro){
+            if(intro == 2){
+                //hide intro 1, show intro 2
+                document.getElementById("int1").style.visibility = "hidden";
+                document.getElementById("int2").style.visibility = "visible";
+            }
+            else if(intro == 3){
+                //hide intro 2, show intro 3
+                document.getElementById("int2").style.visibility = "hidden";
+                document.getElementById("int3").style.visibility = "visible";
+            }
+            //if parameter is for some reason not 2 or 3, do nothing. Button wont work, know to fix it
+        }
+
+
+        //start the game after clicking to continue on third and final intro page
+        function gamestart(){
+            //set clock counter to 120
+            document.getElementById("timeleft").innerHTML = timeRemaining + " minutes";
+            //hide intro3
+            document.getElementById("int3").style.visibility = "hidden";
+            //SUB background already visible
+            //show clock icon
+            document.getElementById("clock").style.visibility = "visible";
+            //show clock counter
+            document.getElementById("timeleft").style.visibility = "visible";
+            //show map icon
+            document.getElementById("mapicon").style.visibility = "visible";
+            //show location name
+            document.getElementById("zero").style.visibility = "visible";
+        }
+
+
+        //Map menu
+        function goMap(){
+            //try to set all visited locations to known pointers
+            for(i = 0; i <= 5; i++){
+                if(visited[i] == 1){
+                    document.getElementById(LOCATIONS[i]).src = "knownLocation.png"
+                }
+            }
+            //set pointer for current location to YouAreHere.png
+            //If current location was set as "known", this will overwrite that (which we want to happen)
+            document.getElementById(currLocationName).src = "YouAreHere.png";
+
+            //set up map distances
+            //case 3 and 4 DO NOT EXIST. Those locations cannot access the map
+            console.log("YOU ARE TRYING TO DISPLAY DISTANCE. YOUR CURRENT LOCATION IS: " + currLocation);
+            switch(currLocation){
+                case 0:
+                    setMap(SUB_ARR);
+                    break;
+                case 1:
+                    setMap(PABL_ARR);
+                    break;
+                case 2:
+                    setMap(PPP_ARR);
+                    break;
+                case 5:
+                    setMap(HPG_ARR);
+                    break;
+                case 6:
+                    setMap(GP_ARR);
+                    break;
+                case 7:
+                    setMap(HUGP_ARR);
+                    break;
+                case 8:
+                    setMap(TRAIL_ARR);
+            }
+
+            //get minimum map distance
+            var min = minDis();
+            if(min > timeRemaining){
+                //if don't have time to go anywhere, lose
+                lose();
+            }
+
+            //console.log("THE MIN " + min + " THE REMAIN " + timeRemaining);
+            //uncomment if need to check the minimum and remaining values it's using
+
+            //otherwise, continue
+            //remove current possible elements
+            document.getElementById(currLocation).style.visibility = "hidden";
+            document.getElementById(ALLLOC[currLocation]).style.visibility = "hidden";
+            document.getElementById("mapicon").style.visibility = "hidden";
+            document.getElementById("SID").style.visibility = "hidden";
+            document.getElementById("left").style.visibility = "hidden";
+            document.getElementById("right").style.visibility = "hidden";
+            document.getElementById("walkTrail").style.visibility = "hidden";
+
+            //add map elements
+            document.getElementById("map").style.visibility = "visible";
+            for(var i = 0; i <= 5; i++){
+                document.getElementById(LOCATIONS[i]).style.visibility = "visible";
+                document.getElementById(LOCATIONS[i]+"time").style.visibility = "visible";
+            }
+        }
+
+
+        //Travel mechanic
+        function toLocation(goalLocation){
+            //first, mark current location as visited
+            visited[currLocation] = 1;
+            //use to check if player can still go to their desired location
+            //if fail any test, do playerOK[goalLocation] = 1
+            //then before moving on, check if playerOK[goalLocation] is still 0 (ok to generate that location)
+            var playerOK = [0,0,0,0,0,0,0,0,0];
+            
+            //goalLocation can be number from 0-8
+            //goalLocation = 2,3,4,8 special (don't have distances stored through map)
+            //2,3,4 always take 5 minutes. 8 always takes 15 minutes.
+            
+            if(goalLocation == 3 || goalLocation == 4){
+                //dont let player go to CB or BRB without enough time to get back
+                //Those locations don't include a map option, so it would be impossible to get back
+                if(timeRemaining < 10){
+                    //change the left/right markers to warning signs
+                    if(goalLocation == 3){
+                       document.getElementById("right").src = "toofarnoreturn.png";
+                       playerOK[goalLocation] = 1;
+                    }
+                    else{
+                       document.getElementById("left").src = "toofarnoreturn.png";
+                       playerOK[goalLocation] = 1;
+                    }
+                }
+            }
+            //don't need to check for location==2, can only get it after passing the ==3 or ==4 tests, so it should always be possible
+            if(goalLocation == 8){
+                //TRAIL does have map access, not worried about player using up all time to travel here
+                if(timeRemaining < 15){
+                    document.getElementById("walkTrail").src = "toofar.png";
+                    playerOK[goalLocation] = 1;
+                }
+            }
+
+            //need updated locations name translator
+            const locationNames = ["SUB","PABL","PPP","CB","BRB","HPG","GP","HUGP","TRAIL"];
+
+            //now a general check
+            if(timeRemaining < document.getElementById(locationNames[goalLocation]).class){
+                document.getElementById(locationNames[goalLocation]+"time").innerHTML = "TOO FAR";
+                playerOK[goalLocation] = 1;
+            }
+
+            //Now check if player is ok to move on before generating that location
+            if(playerOK[goalLocation] == 0){
+                //DEBUGGING, issue with HUGP and PPP routes
+                console.log("NEW LOCATION OK TO VISIT. Current Location = " + currLocation + " Desired Location = " + goalLocation);
+
+                //update time
+                timeRemaining = timeRemaining - document.getElementById(locationNames[goalLocation]).class;
+                //update visual counter
+                document.getElementById("timeleft").innerHTML = timeRemaining + " minutes";
+                
+                //set new currents
+                currLocation = goalLocation;
+                currLocationName = locationNames[currLocation];
+                
+                //clear map or old background
+                clearAll();
+                document.getElementById(locationNames[currLocation]);
+
+                //generate new background with updated location
+                document.getElementById(currLocation).style.visibility = "visible";
+                document.getElementById(currLocationName).style.visibility = "visible";
+                document.getElementById("clock").style.visibility = "visible";
+                document.getElementById("timeleft").style.visibility = "visible";
+
+                //some things are still area specific
+                //Map does not spawn in 3 or 4 (CB or BRB)
+                if(currLocation != 3 && currLocation != 4){
+                    document.getElementById("mapicon").style.visibility = "visible";
+                }
+                //Back button does spawn in both 3 and 4 (CB or BRB)
+                else{
+                    document.getElementById("back").style.visibility = "visible";
+                }
+                //Location 2 (PPP) gets left and right options
+                if(currLocation == 2){
+                    //Make sure these are not changes by previous checks
+                    document.getElementById("left").src = "left.png";
+                    document.getElementById("right").src = "right.png";
+
+                    document.getElementById("left").style.visibility = "visible";
+                    document.getElementById("right").style.visibility = "visible";
+                }
+                //Location 7 (HUGP) gets the continue down trail option
+                if(currLocation == 7){
+                    //make sure it was not changed in previous checks
+                    document.getElementById("walkTrail").src = "continue.png";
+                }
+
+                //finally, check if ID can spawn in current area
+                if(randLocation == currLocation){
+                    document.getElementById("SID").style.visibility = "visible";
+                }
+
+            }
+            else{
+                //DEBUGGING, issue with HUGP and PPP routes
+                console.log("NEW LOCATION CAN'T BE VISITED. Goal Location: " + goalLocation + "  playerOK array for this location: " + playerOK[goalLocation] + " (0 = can be visited, 1 = cannot be visited)");
+            }
+            //else do nothing, player can click on another option
+
+        }
+
+
+
+        function clearAll(){
+            //DEBUGGING, ussue with HUGP
+            console.log("YOU'RE USING clearAll(). YOUR CURRENT LOCATION IS " + currLocation);
+
+            //clear everything that could be visible
+            document.getElementById(currLocation).style.visibility = "hidden";
+            document.getElementById(ALLLOC[currLocation]).style.visibility = "hidden";
+            document.getElementById("mapicon").style.visibility = "hidden";
+            document.getElementById("SID").style.visibility = "hidden";
+            document.getElementById("left").style.visibility = "hidden";
+            document.getElementById("right").style.visibility = "hidden";
+            document.getElementById("walkTrail").style.visibility = "hidden";
+            document.getElementById("back").style.visibility = "hidden";
+            document.getElementById("clock").style.visibility = "hidden";
+            document.getElementById("timeleft").style.visibility = "hidden";
+            document.getElementById("map").style.visibility = "hidden";
+            for(var i = 0; i <= 5; i++){
+                document.getElementById(LOCATIONS[i]).style.visibility = "hidden";
+                document.getElementById(LOCATIONS[i]+"time").style.visibility = "hidden";
+            }
+        }
+        function lose(){
+            //display lose screen
+            document.getElementById("lose").style.visibility = "visible";
+            //END GAME, player must reload page to play again
+        }
+        function win(){
+            //Same as lose, but you win! nice.
+            document.getElementById("win").style.visibility = "visible";
+            //GAME END
+        }
+        
+    </script>
+
+</head>
+
+<body>
+    <!--Almost everything exists as an image-->
+    <!--The game works by hiding/revealing them as needed through javascript functions executed when certain images are clicked-->
+
+    <!--Homepage-->
+    <!--These start visible-->
+    <img id="home" style="position: fixed; visibility: visible;" src="home.png">
+    <img id="start" style="position: absolute; top: 635px; left: 485px; visibility: visible;" src="play.png" onclick="goIntro()">
+
+
+    <!--Location Backgrounds-->
+    <!--ID's are 1-8 so they can be easily compared to the lost item location (randomly chosen from 1-8)-->
+    <!--ID CANNOT spawn in SUB, leaving it as zero-->
+    <!-- Reference list:
+        Student Union Building (SUB) - starting point
+        Public Area and Boat Launch (PABL) - regular location
+        Point Pleasent Park (PPP) - regular location
+            Cambridge Battery (CB) - Can only be reached through PPP, not full map. Can only travel back to PPP
+            Black Rock Beach (BRB) - Can only be reached through PPP, not full map. Can only travel back to PPP
+        Gorsebrook Park (GP) - regular location
+        Halifax Urban Greenway Park (HUGP) - regular location
+            Point further down HUGP trail (TRAIL) - Can only be reached through HUGP, not full map. Can then travel to any regular location
+    -->
+    <img id="0" style="position: fixed; visibility: hidden;" src="SUB.png">
+    <img id="1" style="position: fixed; visibility: hidden;" src="PABL.png">
+    <img id="2" style="position: fixed; visibility: hidden;" src="PPP.png">
+    <img id="3" style="position: fixed; visibility: hidden;" src="CB.png">
+    <img id="4" style="position: fixed; visibility: hidden;" src="BRB.png">
+    <img id="5" style="position: fixed; visibility: hidden;" src="HPG.png">
+    <img id="6" style="position: fixed; visibility: hidden;" src="GP.png">
+    <img id="7" style="position: fixed; visibility: hidden;" src="HUGP.png">
+    <img id="8" style="position: fixed; visibility: hidden;" src="TRAIL.png">
+
+
+    <!--Location Options-->
+    <!--Some locations have extra options-->
+    <!--In PPP, player can choose to go left (goes to BRB) or right (goes to CB)-->
+    <img id="left" style="position: absolute; top: 300px; left: 20px; visibility: hidden;" src="left.png" onclick="toLocation(4)">
+    <img id="right" style="position: absolute; top: 300px; left: 1000px; visibility: hidden;" src="right.png" onclick="toLocation(3)">
+    <!--In either BRB or CB, player can ONLY choose to go back to PPP (map option hidden)-->
+    <img id="back" style="position: absolute; top: 300px; left: 490px; visibility: hidden;" src="back.png" onclick="toLocation(2)">
+    <!--In HUGP player can choose to continue down the trail-->
+    <!--Positioning this one low, DO NOT MOVE ID BEHIND IT-->
+    <img id="walkTrail" style="position: absolute; top: 550px; left: 490px; visibility: hidden;" src="continue.png" onclick="toLocation(8)">
+    <!--Once at the end of the trail, can access map and go anywhere, so no need for a "back" in this case-->
+
+
+    <!--Intro-->
+    <!--Textboxes the player can click through that explain the game. Should be visible with SUB background, but without map/clock/location name visible yet-->
+    <img id="int1" style="position: absolute; visibility: hidden;" src="intro1.png" onclick="introScroll(2)"> 
+    <img id="int2" style="position: absolute; visibility: hidden;" src="intro2.png" onclick="introScroll(3)"> 
+    <img id="int3" style="position: absolute; visibility: hidden;" src="intro3.png" onclick="gamestart()"> 
+
+
+    <!--Location Names-->
+    <!--Will give these word version of location background id's. should become visible when matching background does-->
+    <img id="zero" style="position: absolute; visibility: hidden;" src="SUBt.png">
+    <img id="one" style="position: absolute; visibility: hidden;" src="PABLt.png">
+    <img id="two" style="position: absolute; visibility: hidden;" src="PPPt.png">
+    <img id="three" style="position: absolute; top: 15px; left: 15px; visibility: hidden;" src="CBt.png">
+    <img id="four" style="position: absolute; top: 15px; left: 15px; visibility: hidden;" src="BRBt.png">
+    <img id="five" style="position: absolute; visibility: hidden;" src="HPGt.png">
+    <img id="six" style="position: absolute; top: 15px; left: 15px; visibility: hidden;" src="GPt.png">
+    <!--the two trail locations share a name-->
+    <!-- WAS CAUSING ISSUES (originally one img id="seveneight"). SEPERATING THESE TWO, WE'LL SEE IF IT MAKES THINGS BETTER OR WORSE-->
+    <!-- Can actually visit HUGP now, yipee. However, it still has no continue down trail marker. continue.png exists, but might never be called to be visible?-->
+    <!-- Check how we got left.png and right.png to exist, then use something like that probably. -->
+    <img id="seven" style="position: absolute; visibility: hidden;" src="HUGPt.png">
+    <img id="eight" style="position: absolute; visibility: hidden;" src="HUGPt.png">
+
+
+    <!--The Map-->
+    <!--Base map-->
+    <img id="map" style="position: fixed; visibility: hidden;" src="mapbase.png">
+    <!--Map icons. One for each of 9 locations. src may change to reflect player location and location discovered/undiscovered-->
+    <!--knownLocation.png, unknownLocation.png, YouAreHere.png-->
+    <!--Game starts with all locations undiscovered, except SUB where player starts-->
+    <!--Each location also has a time it takes to get there note. This can be changed depending on current location-->
+    <!--using "class" attribute to store numerical distance within pointer, so it's easy to grab when that pointer is clicked. Updated whenever map is selected-->
+    <img id="SUB" style="position: absolute; top: 200px; left: 460px; visibility: hidden;" class=0 src="YouAreHere.png" onclick="toLocation(0)">
+    <p id="SUBtime" style="position: absolute; top: 260px; left: 460px; color: white; visibility: hidden;">-min</p>
+
+    <img id="PABL" style="position: absolute; top: 290px; left: 300px; visibility: hidden;" class=0 src="unknownLocation.png" onclick="toLocation(1)">
+    <p id="PABLtime" style="position: absolute; top: 350px; left: 300px; color: white; visibility: hidden;">-min</p>
+
+    <img id="PPP" style="position: absolute; top: 460px; left: 855px; visibility: hidden;" class=0 src="unknownLocation.png" onclick="toLocation(2)">
+    <p id="PPPtime" style="position: absolute; top: 520px; left: 855px; color: white; visibility: hidden;">-min</p>
+
+    <!--BRB and CB not available from map-->
+
+    <img id="HPG" style="position: absolute; top: 75px; left: 595px; visibility: hidden;" class=0 src="unknownLocation.png" onclick="toLocation(5)">
+    <p id="HPGtime" style="position: absolute; top: 135px; left: 595px; color: white; visibility: hidden;">-min</p>
+
+    <img id="GP" style="position: absolute; top: 270px; left: 580px; visibility: hidden;" class=0 src="unknownLocation.png" onclick="toLocation(6)">
+    <p id="GPtime" style="position: absolute; top: 330px; left: 580px; color: white; visibility: hidden;">-min</p>
+
+    <img id="HUGP" style="position: absolute; top: 280px; left: 370px; visibility: hidden;" class=0 src="unknownLocation.png" onclick="toLocation(7)">
+    <p id="HUGPtime" style="position: absolute; top: 340px; left: 370px; color: white; visibility: hidden;">-min</p>
+
+    <!--TRAIL not available from map-->
+
+
+    <!--Clock. Always visible during game. Not on menu or win/lose screens-->
+    <img id="clock" style="position: absolute; top: 20px; left: 1025px; visibility: hidden;" src="clock.png">
+    <!--Counter for time remaining, can be changed with location travel updates-->
+    <h2 id="timeleft" style="position: absolute; top: 35px; left: 1150px; visibility: hidden; background-color: white;">120 minutes</h2>
+
+
+    <!--Map. Leads to Map screen-->
+    <img id="mapicon" style="position: absolute; top: 540px; left: 15px; visibility: hidden;" src="mapicon.png" onclick="goMap()">
+
+
+    <!--Student ID. Should only be visible on the background it's selected to be in at beginning of game-->
+    <!--Click on it and you win yipee-->
+    <img id="SID" style="position: absolute; top: 580px; left: 850px; visibility: hidden;" src="SID.png" onclick="win()">
+
+
+    <!--Win and Lose screens. Nothing else there. Player needs to reload page to play again-->
+    <img id="win" style="position: fixed; visibility: hidden;" src="win.png">
+    <img id="lose" style="position: fixed; visibility: hidden;" src="lose.png">
+
+</body>
+</html>
